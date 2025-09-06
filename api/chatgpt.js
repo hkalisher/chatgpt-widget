@@ -1,7 +1,33 @@
 module.exports = async (req, res) => {
+  // --- CORS (allow POST + OPTIONS) ---
+  // For quick testing you can leave ALLOWED_ORIGINS unset to default to "*".
+  // In production, set ALLOWED_ORIGINS in Vercel to a comma-separated list,
+  // e.g. "https://your-site.com,https://hoppscotch.io"
+  const allowedList = (process.env.ALLOWED_ORIGINS || '*')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const origin = req.headers.origin || '';
+  const allowOrigin = allowedList.includes('*')
+    ? '*'
+    : (allowedList.includes(origin) ? origin : '');
+
+  if (allowOrigin) res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Preflight
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    return res.end();
+  }
+  // --- end CORS ---
+
   if (req.method !== 'POST') {
     res.statusCode = 405;
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', 'POST, OPTIONS');
     res.setHeader('Content-Type', 'application/json');
     return res.end(JSON.stringify({ error: 'Method not allowed' }));
   }
