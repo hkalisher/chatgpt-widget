@@ -1,16 +1,23 @@
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
+    res.statusCode = 405;
     res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ error: 'Method not allowed' }));
+  }
+
+  let body = req.body;
+  if (typeof body === 'string') { try { body = JSON.parse(body); } catch {} }
+  const prompt = body?.prompt ? String(body.prompt) : 'Hello!';
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ error: 'Missing OPENAI_API_KEY on server' }));
   }
 
   try {
-    const { prompt } = req.body || {};
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'Missing OPENAI_API_KEY on server' });
-    }
-
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -21,7 +28,7 @@ export default async function handler(req, res) {
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: 'You are a helpful assistant for an e-commerce website.' },
-          { role: 'user', content: prompt ?? 'Hello!' }
+          { role: 'user', content: prompt }
         ],
         temperature: 0.7,
         max_tokens: 300
@@ -30,15 +37,18 @@ export default async function handler(req, res) {
 
     const data = await r.json();
     if (!r.ok) {
-      return res.status(r.status).json({
-        error: data?.error?.message || 'OpenAI error',
-        details: data
-      });
+      res.statusCode = r.status;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ error: data?.error?.message || 'OpenAI error', details: data }));
     }
 
-    const reply = data?.choices?.[0]?.message?.content ?? '';
-    return res.status(200).json({ reply });
-  } catch (err) {
-    return res.status(500).json({ error: 'Server error', details: String(err) });
+    const reply = data?.choices?.[0]?.message?.content || '';
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ reply }));
+  } catch (e) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Server error', details: String(e) }));
   }
-}
+};
